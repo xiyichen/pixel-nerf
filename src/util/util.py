@@ -219,18 +219,29 @@ def masked_sample(masks, num_pix, prop_inside, thresh=0.5):
 
 def bbox_sample(bboxes, num_pix):
     """
+    :param 
+    bboxes:(NV, 4) ,cmin rmin cmax rmax
+    num_pix:int,128
     :return (num_pix, 3)
     """
-    image_ids = torch.randint(0, bboxes.shape[0], (num_pix,))
-    pix_bboxes = bboxes[image_ids]
+    image_ids = torch.randint(0, bboxes.shape[0], (num_pix,))#[0,NV),shape:128
+    pix_bboxes = bboxes[image_ids]#128x4
+    # x = (
+    #     torch.rand(num_pix) * (pix_bboxes[:, 2] + 1 - pix_bboxes[:, 0])
+    #     + pix_bboxes[:, 0]
+    # ).long()#128
+    # y = (
+    #     torch.rand(num_pix) * (pix_bboxes[:, 3] + 1 - pix_bboxes[:, 1])
+    #     + pix_bboxes[:, 1]
+    # ).long()#128
     x = (
-        torch.rand(num_pix) * (pix_bboxes[:, 2] + 1 - pix_bboxes[:, 0])
+        torch.rand(num_pix) * (pix_bboxes[:, 2]  - pix_bboxes[:, 0])
         + pix_bboxes[:, 0]
-    ).long()
+    ).long()#128
     y = (
-        torch.rand(num_pix) * (pix_bboxes[:, 3] + 1 - pix_bboxes[:, 1])
+        torch.rand(num_pix) * (pix_bboxes[:, 3]  - pix_bboxes[:, 1])
         + pix_bboxes[:, 1]
-    ).long()
+    ).long()#128
     pix = torch.stack((image_ids, y, x), dim=-1)
     return pix
 

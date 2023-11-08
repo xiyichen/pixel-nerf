@@ -7,13 +7,13 @@ import numpy as np
 from util import get_image_to_tensor_balanced, get_mask_to_tensor
 
 
-class SRNDataset(torch.utils.data.Dataset):
+class FaceScapeDataset(torch.utils.data.Dataset):
     """
     Dataset from SRN (V. Sitzmann et al. 2020)
     """
 
     def __init__(
-        self, path, stage="train", image_size=(128, 128), world_scale=1.0,
+        self, path, stage="train", image_size=(256, 256), world_scale=1.0,
     ):
         """
         :param stage train | val | test
@@ -24,16 +24,9 @@ class SRNDataset(torch.utils.data.Dataset):
         self.base_path = path + "_" + stage
         self.dataset_name = os.path.basename(path)
 
-        print("Loading SRN dataset", self.base_path, "name:", self.dataset_name)
+        print("Loading FaceScape dataset", self.base_path, "name:", self.dataset_name)
         self.stage = stage
         assert os.path.exists(self.base_path)
-
-        is_chair = "chair" in self.dataset_name
-        if is_chair and stage == "train":
-            # Ugly thing from SRN's public dataset
-            tmp = os.path.join(self.base_path, "chairs_2.0_train")
-            if os.path.exists(tmp):
-                self.base_path = tmp
 
         self.intrins = sorted(
             glob.glob(os.path.join(self.base_path, "*", "intrinsics.txt"))
@@ -41,7 +34,7 @@ class SRNDataset(torch.utils.data.Dataset):
         self.image_to_tensor = get_image_to_tensor_balanced()
         self.mask_to_tensor = get_mask_to_tensor()
 
-        self.image_size = (128, 128)
+        self.image_size = (256, 256)
         self.world_scale = world_scale
         self._coord_trans = torch.diag(
             torch.tensor([1, -1, -1, 1], dtype=torch.float32)

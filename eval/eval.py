@@ -22,6 +22,9 @@ import cv2
 import tqdm
 import ipdb
 import warnings
+import lpips
+
+loss_fn_vgg = lpips.LPIPS(net='vgg').cuda() # closer to "traditional" perceptual loss, when used for optimization
 
 #  from pytorch_memlab import set_target_gpu
 #  set_target_gpu(9)
@@ -89,7 +92,7 @@ def extra_args(parser):
 
 
 args, conf = util.args.parse_args(
-    extra_args, default_conf="conf/resnet_fine_mv.conf", default_expname="shapenet",
+    extra_args, default_conf="conf/exp/srn.conf", default_expname="shapenet",
 )
 args.resume = True
 
@@ -99,7 +102,7 @@ dset = get_split_dataset(
     args.dataset_format, args.datadir, want_split=args.split, training=False
 )
 data_loader = torch.utils.data.DataLoader(
-    dset, batch_size=1, shuffle=False, num_workers=8, pin_memory=False
+    dset, batch_size=1, shuffle=False, num_workers=1, pin_memory=False
 )
 
 output_dir = args.output.strip()
@@ -107,6 +110,7 @@ has_output = len(output_dir) > 0
 
 total_psnr = 0.0
 total_ssim = 0.0
+total_lpips = 0.0
 cnt = 0
 
 if has_output:
@@ -311,6 +315,7 @@ with torch.no_grad():
 
         curr_ssim = 0.0
         curr_psnr = 0.0
+        curr_lpips = 0.0
         if not args.no_compare_gt:
             images_0to1 = images * 0.5 + 0.5  # (NV, 3, H, W)
             images_gt = images_0to1[target_view_mask]
@@ -327,8 +332,12 @@ with torch.no_grad():
                 psnr = skimage.measure.compare_psnr(
                     all_rgb[view_idx], rgb_gt_all[view_idx], data_range=1
                 )
+                gt_torch_sub = torch.from_numpy(all_rgb[view_idx].copy()).permute(2,0,1).unsqueeze(0)
+                target_torch_sub = torch.from_numpy(rgb_gt_all[view_idx].copy()).permute(2,0,1).unsqueeze(0)
+                lpips = loss_fn_vgg(gt_torch_sub.cuda(), target_torch_sub.cuda(), normalize=True)[0][0][0][0].item()
                 curr_ssim += ssim
                 curr_psnr += psnr
+                curr_lpips += lpips
 
                 if args.write_compare:
                     out_file = os.path.join(
@@ -339,9 +348,11 @@ with torch.no_grad():
                     imageio.imwrite(out_file, (out_im * 255).astype(np.uint8))
         curr_psnr /= n_gen_views
         curr_ssim /= n_gen_views
+        curr_lpips /= n_gen_views
         curr_cnt = 1
         total_psnr += curr_psnr
         total_ssim += curr_ssim
+        total_lpips += curr_lpips
         cnt += curr_cnt
         if not args.no_compare_gt:
             print(
@@ -349,12 +360,16 @@ with torch.no_grad():
                 curr_psnr,
                 "ssim",
                 curr_ssim,
+                "lpips",
+                curr_lpips,
                 "running psnr",
                 total_psnr / cnt,
                 "running ssim",
                 total_ssim / cnt,
+                "running lpips",
+                total_lpips / cnt,
             )
         finish_file.write(
-            "{} {} {} {}\n".format(obj_name, curr_psnr, curr_ssim, curr_cnt)
+            "{} {} {} {} {}\n".format(obj_name, curr_psnr, curr_ssim, curr_lpips, curr_cnt)
         )
-print("final psnr", total_psnr / cnt, "ssim", total_ssim / cnt)
+print("final psnr", total_psnr / cnt, "ssim", total_ssim / cnt, "lpips", total_lpips / cnt)
