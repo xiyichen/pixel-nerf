@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import functools
 import math
 import warnings
-
+import pdb
 
 def image_float_to_uint8(img):
     """
@@ -252,12 +252,17 @@ def gen_rays(poses, width, height, focal, z_near, z_far, c=None, ndc=False):
     :return (B, H, W, 8)
     """
     num_images = poses.shape[0]
+    # print(num_images, focal.shape, c.shape) 16, [16,2], [16,2]
     device = poses.device
-    cam_unproj_map = (
-        unproj_map(width, height, focal.squeeze(), c=c, device=device)
-        .unsqueeze(0)
-        .repeat(num_images, 1, 1, 1)
-    )
+    cam_unproj_map = []
+    for i in range(num_images):
+        cam_unproj_map.append(unproj_map(width, height, focal[i], c=c[i], device=device).unsqueeze(0))
+    cam_unproj_map = torch.cat(cam_unproj_map)
+    # cam_unproj_map = (
+    #     unproj_map(width, height, focal, c=c, device=device)
+    #     .unsqueeze(0)
+    #     .repeat(num_images, 1, 1, 1)
+    # )
     cam_centers = poses[:, None, None, :3, 3].expand(-1, height, width, -1)
     cam_raydir = torch.matmul(
         poses[:, None, None, :3, :3], cam_unproj_map.unsqueeze(-1)

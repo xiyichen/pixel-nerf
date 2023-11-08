@@ -18,7 +18,7 @@ import numpy as np
 import torch.nn.functional as F
 import torch
 from dotmap import DotMap
-
+import pdb
 
 def extra_args(parser):
     parser.add_argument(
@@ -122,8 +122,8 @@ class PixelNeRFTrainer(trainlib.Trainer):
         SB, NV, _, H, W = all_images.shape
         all_poses = data["poses"].to(device=device)  # (SB, NV, 4, 4)
         all_bboxes = data.get("bbox")  # (SB, NV, 4)  cmin rmin cmax rmax
-        all_focals = data["focal"]  # (SB)
-        all_c = data.get("c")  # (SB)
+        all_focals = data["focal"]  # (SB, NV, 2)
+        all_c = data.get("c")  # (SB, NV, 2)
 
         if self.use_bbox and global_step >= args.no_bbox_step:
             self.use_bbox = False
@@ -145,10 +145,10 @@ class PixelNeRFTrainer(trainlib.Trainer):
                 bboxes = all_bboxes[obj_idx]
             images = all_images[obj_idx]  # (NV, 3, H, W)
             poses = all_poses[obj_idx]  # (NV, 4, 4)
-            focal = all_focals[obj_idx]
+            focal = all_focals[obj_idx] # NV, 2
             c = None
             if "c" in data:
-                c = data["c"][obj_idx]
+                c = data["c"][obj_idx] # NV, 2
             if curr_nviews > 1:
                 # Somewhat inefficient, don't know better way
                 image_ord[obj_idx] = torch.from_numpy(

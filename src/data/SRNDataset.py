@@ -107,6 +107,8 @@ class SRNDataset(torch.utils.data.Dataset):
         all_poses = torch.stack(all_poses)
         all_masks = torch.stack(all_masks)
         all_bboxes = torch.stack(all_bboxes)
+        print(all_imgs.shape)
+        exit()
 
         if all_imgs.shape[-2:] != self.image_size:
             scale = self.image_size[0] / all_imgs.shape[-2]
