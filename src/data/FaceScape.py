@@ -51,13 +51,15 @@ class FaceScapeDataset(torch.utils.data.Dataset):
                     if not os.path.isdir(f'/cluster/scratch/xiychen/data/facescape_color_calibrated/{str(i).zfill(3)}/{str(j).zfill(2)}'):
                         continue
                     uids.append(f'{str(i).zfill(3)}/{str(j).zfill(2)}')
-        else:
+        elif stage == 'val':
             for i in range(1, 360):
-                if i in [122, 212, 340, 344] or i > 325:
+                if i in [122, 212, 340, 344]:
                     for j in range(1, 21, 1):
                         if not os.path.isdir(f'/cluster/scratch/xiychen/data/facescape_color_calibrated/{str(i).zfill(3)}/{str(j).zfill(2)}'):
                             continue
                         uids.append(f'{str(i).zfill(3)}/{str(j).zfill(2)}')
+        else:
+            uids.append('122/03')
         self.uids = uids
 
         self.z_near = 0.8
@@ -99,7 +101,7 @@ class FaceScapeDataset(torch.utils.data.Dataset):
             for valid_view in valid_views:
                 if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
                     view_candidates.append(valid_view)
-            assert len(view_candidates >= 4)
+            assert len(view_candidates) >= 4
         except:
             print('ran into exception')
             dir_path = f'/cluster/scratch/xiychen/data/facescape_color_calibrated/085/03'
