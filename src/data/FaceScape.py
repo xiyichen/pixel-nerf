@@ -86,21 +86,8 @@ class FaceScapeDataset(torch.utils.data.Dataset):
         return (final_image).astype(np.uint8)
 
     def __getitem__(self, index):
-        dir_path = f'/cluster/scratch/xiychen/data/facescape_color_calibrated/{self.uids[index]}'
-        with open(os.path.join(dir_path, 'cameras.json'), 'r') as f:
-            camera_dict = json.load(f)
-        
-        valid_views = []
-        for view in camera_dict.keys():
-            if os.path.isfile(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png')):
-                valid_views.append(view)
-        view_candidates = []
-        for valid_view in valid_views:
-            if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
-                view_candidates.append(valid_view)
-        
-        if len(view_candidates) < 16:
-            dir_path = os.path.join(self.data_dir, '085/03')
+        try:
+            dir_path = f'/cluster/scratch/xiychen/data/facescape_color_calibrated/{self.uids[index]}'
             with open(os.path.join(dir_path, 'cameras.json'), 'r') as f:
                 camera_dict = json.load(f)
             
@@ -112,7 +99,22 @@ class FaceScapeDataset(torch.utils.data.Dataset):
             for valid_view in valid_views:
                 if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
                     view_candidates.append(valid_view)
-        view_candidates = random.sample(view_candidates, 16)
+            assert len(view_candidates >= 4)
+        except:
+            print('ran into exception')
+            dir_path = f'/cluster/scratch/xiychen/data/facescape_color_calibrated/085/03'
+            with open(os.path.join(dir_path, 'cameras.json'), 'r') as f:
+                camera_dict = json.load(f)
+            
+            valid_views = []
+            for view in camera_dict.keys():
+                if os.path.isfile(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png')):
+                    valid_views.append(view)
+            view_candidates = []
+            for valid_view in valid_views:
+                if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
+                    view_candidates.append(valid_view)
+        view_candidates = random.sample(view_candidates, 4)
         all_imgs = []
         all_poses = []
         all_masks = []
@@ -127,6 +129,7 @@ class FaceScapeDataset(torch.utils.data.Dataset):
 
             pose = np.eye(4)
             pose[:3,:4] = camera_dict[view]['extrinsics']
+            pose = np.linalg.inv(pose)
             
             intrinsics = camera_dict[view]['intrinsics']
             all_focals.append(torch.tensor([intrinsics[0][0], intrinsics[1][1]]).float())
