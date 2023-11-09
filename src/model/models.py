@@ -10,7 +10,7 @@ from util import repeat_interleave
 import os
 import os.path as osp
 import warnings
-
+import pdb
 
 class PixelNeRFNet(torch.nn.Module):
     def __init__(self, conf, stop_encoder_grad=False):
@@ -204,12 +204,8 @@ class PixelNeRFNet(torch.nn.Module):
             if self.use_encoder:
                 # Grab encoder's latent code.
                 uv = -xyz[:, :, :2] / xyz[:, :, 2:]  # (SB, B, 2)
-                uv *= repeat_interleave(
-                    self.focal.unsqueeze(1), NS if self.focal.shape[0] > 1 else 1
-                )
-                uv += repeat_interleave(
-                    self.c.unsqueeze(1), NS if self.c.shape[0] > 1 else 1
-                )  # (SB*NS, B, 2)
+                uv *= self.focal
+                uv += self.c
                 latent = self.encoder.index(
                     uv, None, self.image_shape
                 )  # (SB * NS, latent, B)

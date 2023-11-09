@@ -136,6 +136,7 @@ class PixelNeRFTrainer(trainlib.Trainer):
         all_rays = []
 
         curr_nviews = nviews[torch.randint(0, len(nviews), ()).item()]
+        
         if curr_nviews == 1:
             image_ord = torch.randint(0, NV, (SB, 1))
         else:
@@ -180,20 +181,22 @@ class PixelNeRFTrainer(trainlib.Trainer):
 
         all_rgb_gt = torch.stack(all_rgb_gt)  # (SB, ray_batch_size, 3)
         all_rays = torch.stack(all_rays)  # (SB, ray_batch_size, 8)
-
         image_ord = image_ord.to(device)
+        src_focals = util.batched_index_select_nd(all_focals.to(device=device), image_ord)
+        src_c = util.batched_index_select_nd(all_c.to(device=device), image_ord)
         src_images = util.batched_index_select_nd(
             all_images, image_ord
         )  # (SB, NS, 3, H, W)
         src_poses = util.batched_index_select_nd(all_poses, image_ord)  # (SB, NS, 4, 4)
 
-        all_bboxes = all_poses = all_images = None
-
+        all_bboxes = all_poses = all_images = all_focals = all_c = None
+        
+        # print('train: ', src_poses.shape, src_focals.shape, src_c.shape)
         net.encode(
             src_images,
             src_poses,
-            all_focals.to(device=device),
-            c=all_c.to(device=device) if all_c is not None else None,
+            src_focals,
+            c=src_c
         )
 
         render_dict = DotMap(render_par(all_rays, want_weights=True,))
@@ -236,10 +239,12 @@ class PixelNeRFTrainer(trainlib.Trainer):
             batch_idx = idx
         images = data["images"][batch_idx].to(device=device)  # (NV, 3, H, W)
         poses = data["poses"][batch_idx].to(device=device)  # (NV, 4, 4)
-        focal = data["focal"][batch_idx : batch_idx + 1]  # (1)
+        # focal = data["focal"][batch_idx : batch_idx + 1]  # (1)
+        focal = data["focal"][batch_idx]  # (1)
         c = data.get("c")
         if c is not None:
-            c = c[batch_idx : batch_idx + 1]  # (1)
+            # c = c[batch_idx : batch_idx + 1]  # (1)
+            c = c[batch_idx]
         NV, _, H, W = images.shape
         cam_rays = util.gen_rays(
             poses, W, H, focal, self.z_near, self.z_far, c=c
@@ -267,11 +272,12 @@ class PixelNeRFTrainer(trainlib.Trainer):
         with torch.no_grad():
             test_rays = cam_rays[view_dest]  # (H, W, 8)
             test_images = images[views_src]  # (NS, 3, H, W)
+            # print('vis: ', poses[views_src].shape, focal.shape, c.shape)
             net.encode(
                 test_images.unsqueeze(0),
                 poses[views_src].unsqueeze(0),
-                focal.to(device=device),
-                c=c.to(device=device) if c is not None else None,
+                focal.to(device=device)[views_src],
+                c=c.to(device=device)[views_src] if c is not None else None,
             )
             test_rays = test_rays.reshape(1, H * W, -1)
             render_dict = DotMap(render_par(test_rays, want_weights=True))
