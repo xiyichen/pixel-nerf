@@ -120,7 +120,7 @@ class FaceScapeDataset(torch.utils.data.Dataset):
         all_focals = []
         all_cs = []
         for view in view_candidates:
-            img = self.read_transparent_png(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png'))
+            img = self.read_transparent_png(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png'))[:,:,::-1].copy()
             img_tensor = self.image_to_tensor(img)
             mask = (img != 255).all(axis=-1)[..., None].astype(np.uint8) * 255
             mask_tensor = self.mask_to_tensor(mask)
