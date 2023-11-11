@@ -24,3 +24,5 @@ eval_out/
 checkpoints*/
 visuals*/
 logs*/
+./nohup_logs/
+./nohup_logs/*.out

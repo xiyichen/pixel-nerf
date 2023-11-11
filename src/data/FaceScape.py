@@ -43,23 +43,32 @@ class FaceScapeDataset(torch.utils.data.Dataset):
         )
         
         uids = []
+        
+        self.stage = stage
+        self.view_candidates = []
         if stage == 'train':
             for i in range(1, 360):
                 if i in [122, 212, 340, 344] or i > 325:
                     continue
                 for j in range(1,21,1):
-                    if not os.path.isdir(f'/cluster/scratch/xiychen/data/facescape_color_calibrated/{str(i).zfill(3)}/{str(j).zfill(2)}'):
+                    if not os.path.isdir(f'/root/data/facescape_color_calibrated/{str(i).zfill(3)}/{str(j).zfill(2)}'):
                         continue
                     uids.append(f'{str(i).zfill(3)}/{str(j).zfill(2)}')
         elif stage == 'val':
             for i in range(1, 360):
                 if i in [122, 212, 340, 344]:
                     for j in range(1, 21, 1):
-                        if not os.path.isdir(f'/cluster/scratch/xiychen/data/facescape_color_calibrated/{str(i).zfill(3)}/{str(j).zfill(2)}'):
+                        if not os.path.isdir(f'/root/data/facescape_color_calibrated/{str(i).zfill(3)}/{str(j).zfill(2)}'):
                             continue
                         uids.append(f'{str(i).zfill(3)}/{str(j).zfill(2)}')
         else:
-            uids.append('122/03')
+            with open(os.path.join(f'/root/data/facescape_color_calibrated/', 'test.json')) as f:
+                test_metadata = json.load(f)
+            for subject_id in test_metadata:
+                for exp_id in test_metadata[subject_id]:
+                    num_target_views = int(test_metadata[subject_id][exp_id]['num_target_views'])
+                    self.view_candidates.append([test_metadata[subject_id][exp_id]['input_idx']] + test_metadata[subject_id][exp_id]['target_view_candidates'][:num_target_views])
+                    uids.append(f'{str(subject_id).zfill(3)}/{str(exp_id).zfill(2)}')
         self.uids = uids
 
         self.z_near = 0.8
@@ -88,35 +97,43 @@ class FaceScapeDataset(torch.utils.data.Dataset):
         return (final_image).astype(np.uint8)
 
     def __getitem__(self, index):
-        try:
-            dir_path = f'/cluster/scratch/xiychen/data/facescape_color_calibrated/{self.uids[index]}'
+        if self.stage != 'test':
+            try:
+                dir_path = f'/root/data/facescape_color_calibrated/{self.uids[index]}'
+                with open(os.path.join(dir_path, 'cameras.json'), 'r') as f:
+                    camera_dict = json.load(f)
+                
+                valid_views = []
+                for view in camera_dict.keys():
+                    if os.path.isfile(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png')):
+                        valid_views.append(view)
+                view_candidates = []
+                for valid_view in valid_views:
+                    if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
+                        view_candidates.append(valid_view)
+                assert len(view_candidates) >= 4
+            except:
+                print('ran into exception')
+                dir_path = f'/root/data/facescape_color_calibrated/085/03'
+                with open(os.path.join(dir_path, 'cameras.json'), 'r') as f:
+                    camera_dict = json.load(f)
+                
+                valid_views = []
+                for view in camera_dict.keys():
+                    if os.path.isfile(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png')):
+                        valid_views.append(view)
+                view_candidates = []
+                for valid_view in valid_views:
+                    if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
+                        view_candidates.append(valid_view)
+            
+            view_candidates = random.sample(view_candidates, 4)
+        else:
+            dir_path = f'/root/data/facescape_color_calibrated/{self.uids[index]}'
+            view_candidates = self.view_candidates[index]
             with open(os.path.join(dir_path, 'cameras.json'), 'r') as f:
                 camera_dict = json.load(f)
-            
-            valid_views = []
-            for view in camera_dict.keys():
-                if os.path.isfile(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png')):
-                    valid_views.append(view)
-            view_candidates = []
-            for valid_view in valid_views:
-                if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
-                    view_candidates.append(valid_view)
-            assert len(view_candidates) >= 4
-        except:
-            print('ran into exception')
-            dir_path = f'/cluster/scratch/xiychen/data/facescape_color_calibrated/085/03'
-            with open(os.path.join(dir_path, 'cameras.json'), 'r') as f:
-                camera_dict = json.load(f)
-            
-            valid_views = []
-            for view in camera_dict.keys():
-                if os.path.isfile(os.path.join(dir_path, f'view_{str(view).zfill(5)}', 'rgba_colorcalib_v2.png')):
-                    valid_views.append(view)
-            view_candidates = []
-            for valid_view in valid_views:
-                if abs(camera_dict[valid_view]['angles']['azimuth']) <= 90:
-                    view_candidates.append(valid_view)
-        view_candidates = random.sample(view_candidates, 4)
+        
         all_imgs = []
         all_poses = []
         all_masks = []
@@ -183,5 +200,6 @@ class FaceScapeDataset(torch.utils.data.Dataset):
             "masks": all_masks,
             "bbox": all_bboxes,
             "poses": all_poses,
+            "NV": len(view_candidates)
         }
         return result

@@ -1,0 +1,21 @@
+nohup: ignoring input
+Setting up [LPIPS] perceptual loss: trunk [vgg], v[0.1], spatial [off]
+Loading model from: /root/miniconda3/envs/pixelnerf/lib/python3.8/site-packages/lpips/weights/v0.1/vgg.pth
+EXPERIMENT NAME: facescape_exp
+* Config file: conf/exp/facescape.conf
+* Dataset format: facescape
+* Dataset location: /root/data/facescape_color_calibrated
+Writing images to eval_out/thuman
+Using torchvision resnet34 encoder
+Load checkpoints/facescape_exp/pixel_nerf_latest
+/root/pixel-nerf/src/data/FaceScape.py:192: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  all_focals = torch.tensor(all_focals, dtype=torch.float32)
+OBJECT 0 OF 720 PROGRESS 0.0 % /root/data/facescape_color_calibrated/122/01
+  0%|          | 0/14 [00:00<?, ?it/s]  7%|▋         | 1/14 [00:03<00:43,  3.38s/it] 14%|█▍        | 2/14 [00:06<00:40,  3.38s/it] 21%|██▏       | 3/14 [00:10<00:37,  3.38s/it] 29%|██▊       | 4/14 [00:13<00:33,  3.39s/it] 36%|███▌      | 5/14 [00:16<00:30,  3.39s/it] 43%|████▎     | 6/14 [00:20<00:27,  3.40s/it] 50%|█████     | 7/14 [00:23<00:23,  3.41s/it] 57%|█████▋    | 8/14 [00:27<00:20,  3.42s/it] 64%|██████▍   | 9/14 [00:30<00:17,  3.41s/it] 71%|███████▏  | 10/14 [00:34<00:13,  3.41s/it] 79%|███████▊  | 11/14 [00:37<00:10,  3.42s/it] 86%|████████▌ | 12/14 [00:40<00:06,  3.42s/it] 93%|█████████▎| 13/14 [00:44<00:03,  3.42s/it]100%|██████████| 14/14 [00:46<00:00,  3.18s/it]100%|██████████| 14/14 [00:46<00:00,  3.35s/it]
+eval/eval.py:340: UserWarning: DEPRECATED: skimage.measure.compare_ssim has been moved to skimage.metrics.structural_similarity. It will be removed from skimage.measure in version 0.18.
+  ssim = skimage.measure.compare_ssim(
+eval/eval.py:346: UserWarning: DEPRECATED: skimage.measure.compare_psnr has been moved to skimage.metrics.peak_signal_noise_ratio. It will be removed from skimage.measure in version 0.18.
+  psnr = skimage.measure.compare_psnr(
+curr psnr 19.554264169358305 ssim 0.7880302485735007 lpips 0.20308862023410343 running psnr 19.554264169358305 running ssim 0.7880302485735007 running lpips 0.20308862023410343
+OBJECT 1 OF 720 PROGRESS 0.1388888888888889 % /root/data/facescape_color_calibrated/122/02
+  0%|          | 0/14 [00:00<?, ?it/s]

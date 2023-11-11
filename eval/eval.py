@@ -23,12 +23,14 @@ import tqdm
 import ipdb
 import warnings
 import lpips
+import pdb
+# from torchmetrics.image.fid import FrechetInceptionDistance
 
 loss_fn_vgg = lpips.LPIPS(net='vgg').cuda() # closer to "traditional" perceptual loss, when used for optimization
 
 #  from pytorch_memlab import set_target_gpu
 #  set_target_gpu(9)
-
+# fid = FrechetInceptionDistance().cuda()
 
 def extra_args(parser):
     parser.add_argument(
@@ -92,7 +94,7 @@ def extra_args(parser):
 
 
 args, conf = util.args.parse_args(
-    extra_args, default_conf="conf/exp/srn.conf", default_expname="shapenet",
+    extra_args, default_conf="conf/exp/facescape.conf", default_expname="facescape_exp",
 )
 args.resume = True
 
@@ -170,21 +172,22 @@ else:
 
 NV = dset[0]["images"].shape[0]
 
-if args.eval_view_list is not None:
-    with open(args.eval_view_list, "r") as f:
-        eval_views = torch.tensor(list(map(int, f.readline().split())))
-    target_view_mask = torch.zeros(NV, dtype=torch.bool)
-    target_view_mask[eval_views] = 1
-else:
-    target_view_mask = torch.ones(NV, dtype=torch.bool)
-target_view_mask_init = target_view_mask
+# if args.eval_view_list is not None:
+#     with open(args.eval_view_list, "r") as f:
+#         eval_views = torch.tensor(list(map(int, f.readline().split())))
+#     target_view_mask = torch.zeros(NV, dtype=torch.bool)
+#     target_view_mask[eval_views] = 1
+# else:
+#     target_view_mask = torch.ones(NV, dtype=torch.bool)
+# target_view_mask_init = target_view_mask
 
 all_rays = None
 rays_spl = []
 
 src_view_mask = None
 total_objs = len(data_loader)
-
+gts = []
+generateds = []
 with torch.no_grad():
     for obj_idx, data in enumerate(data_loader):
         print(
@@ -207,6 +210,7 @@ with torch.no_grad():
         images = data["images"][0]  # (NV, 3, H, W)
 
         NV, _, H, W = images.shape
+        NV = data['NV'].item()
 
         if args.scale != 1.0:
             Ht = int(H * args.scale)
@@ -218,62 +222,68 @@ with torch.no_grad():
                     )
                 )
             H, W = Ht, Wt
-
-        if all_rays is None or use_source_lut or args.free_pose:
+        if True:
             if use_source_lut:
                 obj_id = cat_name + "/" + obj_basename
                 source = source_lut[obj_id]
 
             NS = len(source)
             src_view_mask = torch.zeros(NV, dtype=torch.bool)
+            
             src_view_mask[source] = 1
+            
+            # focal = data["focal"][0]
+            # if isinstance(focal, float):
+            #     focal = torch.tensor(focal, dtype=torch.float32)
+            # focal = focal[None]
 
-            focal = data["focal"][0]
-            if isinstance(focal, float):
-                focal = torch.tensor(focal, dtype=torch.float32)
-            focal = focal[None]
-
-            c = data.get("c")
-            if c is not None:
-                c = c[0].to(device=device).unsqueeze(0)
+            # c = data.get("c")
+            # if c is not None:
+            #     c = c[0].to(device=device).unsqueeze(0)
 
             poses = data["poses"][0]  # (NV, 4, 4)
             src_poses = poses[src_view_mask].to(device=device)  # (NS, 4, 4)
+            
+            focals = data['focal'][0]
+            src_focals = focals[src_view_mask].to(device=device)
+            
+            c = data['c'][0]
+            src_c = c[src_view_mask].to(device=device)
 
-            target_view_mask = target_view_mask_init.clone()
+            target_view_mask = torch.ones(NV, dtype=torch.bool)
             if not args.include_src:
                 target_view_mask *= ~src_view_mask
 
             novel_view_idxs = target_view_mask.nonzero(as_tuple=False).reshape(-1)
 
             poses = poses[target_view_mask]  # (NV[-NS], 4, 4)
-
+            focals = focals[target_view_mask]
+            c = c[target_view_mask]
             all_rays = (
                 util.gen_rays(
                     poses.reshape(-1, 4, 4),
                     W,
                     H,
-                    focal * args.scale,
+                    focals * args.scale,
                     z_near,
                     z_far,
-                    c=c * args.scale if c is not None else None,
+                    c=c * args.scale,
                 )
                 .reshape(-1, 8)
                 .to(device=device)
             )  # ((NV[-NS])*H*W, 8)
 
             poses = None
-            focal = focal.to(device=device)
+            # focal = focal.to(device=device)
 
         rays_spl = torch.split(all_rays, args.ray_batch_size, dim=0)  # Creates views
 
         n_gen_views = len(novel_view_idxs)
-
         net.encode(
             images[src_view_mask].to(device=device).unsqueeze(0),
             src_poses.unsqueeze(0),
-            focal,
-            c=c,
+            src_focals,
+            c=src_c,
         )
 
         all_rgb, all_depth = [], []
@@ -293,7 +303,7 @@ with torch.no_grad():
             all_rgb.reshape(n_gen_views, H, W, 3), 0.0, 1.0
         ).numpy()  # (NV-NS, H, W, 3)
         if has_output:
-            obj_out_dir = os.path.join(output_dir, obj_name)
+            obj_out_dir = os.path.join(output_dir, str(data["path"][0].split('/')[-2]) + '/' + str(data["path"][0].split('/')[-1]))
             os.makedirs(obj_out_dir, exist_ok=True)
             for i in range(n_gen_views):
                 out_file = os.path.join(
@@ -323,21 +333,27 @@ with torch.no_grad():
                 images_gt.permute(0, 2, 3, 1).contiguous().numpy()
             )  # (NV-NS, H, W, 3)
             for view_idx in range(n_gen_views):
+                gt = rgb_gt_all[view_idx]
+                generated = all_rgb[view_idx]
+                mask = gt[:,:,0] == 1
+                generated[mask] = 1
                 ssim = skimage.measure.compare_ssim(
-                    all_rgb[view_idx],
-                    rgb_gt_all[view_idx],
+                    generated,
+                    gt,
                     multichannel=True,
                     data_range=1,
                 )
                 psnr = skimage.measure.compare_psnr(
-                    all_rgb[view_idx], rgb_gt_all[view_idx], data_range=1
+                    generated, gt, data_range=1
                 )
-                gt_torch_sub = torch.from_numpy(all_rgb[view_idx].copy()).permute(2,0,1).unsqueeze(0)
-                target_torch_sub = torch.from_numpy(rgb_gt_all[view_idx].copy()).permute(2,0,1).unsqueeze(0)
+                gt_torch_sub = torch.from_numpy(gt.copy()).permute(2,0,1).unsqueeze(0)
+                target_torch_sub = torch.from_numpy(generated.copy()).permute(2,0,1).unsqueeze(0)
                 lpips = loss_fn_vgg(gt_torch_sub.cuda(), target_torch_sub.cuda(), normalize=True)[0][0][0][0].item()
                 curr_ssim += ssim
                 curr_psnr += psnr
                 curr_lpips += lpips
+                # gts.append(gt_torch_sub*255)
+                # generateds.append(target_torch_sub*255)
 
                 if args.write_compare:
                     out_file = os.path.join(
@@ -373,3 +389,8 @@ with torch.no_grad():
             "{} {} {} {} {}\n".format(obj_name, curr_psnr, curr_ssim, curr_lpips, curr_cnt)
         )
 print("final psnr", total_psnr / cnt, "ssim", total_ssim / cnt, "lpips", total_lpips / cnt)
+# gts = torch.stack(gts).to(torch.uint8).cuda()
+# generateds = torch.stack(generateds).to(torch.uint8).cuda()
+# fid.update(gts, real=True)
+# fid.update(generateds, real=False)
+# print(fid.compute())

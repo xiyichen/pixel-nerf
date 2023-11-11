@@ -216,6 +216,7 @@ class PixelNeRFTrainer(trainlib.Trainer):
         loss = rgb_loss
         if is_train:
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(net.parameters(), 0.1)
         loss_dict["t"] = loss.item()
 
         return loss_dict
